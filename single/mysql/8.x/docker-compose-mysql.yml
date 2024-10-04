@@ -1,0 +1,52 @@
+# 命令执行 docker-compose -f docker-compose-mysql.yml up -d
+version: '3.9'
+services:
+  mysql:
+    # 镜像名
+    image: mysql:8.0.32
+    # 容器名(以后的控制都通过这个)
+    container_name: dldb8.0
+    command:
+      # 将mysql8.0默认密码策略 修改为 原先 策略 (mysql8.0对其默认策略做了更改 会导致密码无法匹配)
+      --default-authentication-plugin=mysql_native_password
+#      --character-set-server=utf8mb4
+#      --collation-server=utf8mb4_general_ci
+#      --explicit_defaults_for_timestamp=true
+#      --lower_case_table_names=1
+    # 重启策略
+    restart: always
+    environment:
+      # 时区上海
+      TZ: Asia/Shanghai
+      # root 密码
+      MYSQL_ROOT_PASSWORD: 123456
+    depends_on:
+      - mysql-job-dbdata
+    # 映射端口
+    ports:
+      - "13306:3306"
+    # 数据挂载
+    volumes:
+      # 数据挂载 作为数据存储目录 (如果 mysql 初始化错误  需要将文件夹内部全部删除)
+      - ./data/:/var/lib/mysql/
+      # 配置挂载
+      #  conf 文件夹 放置 my.cnf 配置文件
+      - ./conf/:/etc/mysql/conf.d/
+      # 初始化目录挂载
+      # 放置 .sh .sql 文件 在初始化容器时会执行
+      - ./init/:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD", "mysqladmin" ,"ping", "-h", "localhost" ]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+    volumes_from:
+      - mysql-job-dbdata
+
+  # 自动加载数据
+  mysql-job-dbdata:
+    image: alpine:3.18.2
+    container_name: mysql-job-dbdata
+    volumes:
+      - /var/lib/mysql
